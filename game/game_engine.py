@@ -6,6 +6,7 @@ from .hazard import Hazard
 # Game Engine
 
 WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
 BROWN = (150, 100, 60)
 RED = (220, 60, 60)
 GREEN = (0, 200, 0)
@@ -35,6 +36,7 @@ class GameEngine:
 
         self.score = 0
         self.font = pygame.font.SysFont("Arial", 30)
+        self.large_font = pygame.font.SysFont("Arial", 50, bold=True)
         self.game_over = False
 
     def handle_event(self, event):
@@ -67,7 +69,6 @@ class GameEngine:
             player_left = self.player.x
             player_right = self.player.x + self.player.width
 
-            # Find the highest platform crossed or intersected during this step
             best_platform = None
             best_landing_y = float("inf")
 
@@ -76,9 +77,7 @@ class GameEngine:
                 plat_right = platform.x + platform.width
                 plat_top = platform.y
 
-                # Horizontal overlap check
                 if player_right > plat_left and player_left < plat_right:
-                    # Check if the player's bottom swept through or overlapped the platform surface
                     if old_bottom <= plat_top and new_bottom >= plat_top:
                         if plat_top < best_landing_y:
                             best_landing_y = plat_top
@@ -117,6 +116,18 @@ class GameEngine:
         score_text = self.font.render(f"Score: {self.score}", True, WHITE)
         screen.blit(score_text, (10, 10))
 
-        if self.game_over and not getattr(self, "_game_over_logged", False):
-            print("Game over! Final score:", self.score)
-            self._game_over_logged = True
+        if self.game_over:
+            # Semi-transparent dark overlay
+            overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 180))
+            screen.blit(overlay, (0, 0))
+
+            # Game Over text
+            game_over_surf = self.large_font.render("Game Over!", True, RED)
+            game_over_rect = game_over_surf.get_rect(center=(self.width // 2, self.height // 2 - 30))
+            screen.blit(game_over_surf, game_over_rect)
+
+            # Final Score text
+            final_score_surf = self.font.render(f"Final Score: {self.score}", True, WHITE)
+            final_score_rect = final_score_surf.get_rect(center=(self.width // 2, self.height // 2 + 25))
+            screen.blit(final_score_surf, final_score_rect)
