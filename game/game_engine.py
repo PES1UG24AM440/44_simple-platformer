@@ -15,6 +15,7 @@ class GameEngine:
         self.width = width
         self.height = height
         self.gravity = 0.6
+        self.terminal_velocity = 14.0
 
         self.start_x, self.start_y = 40, height - 120
         self.player = Player(self.start_x, self.start_y)
@@ -52,24 +53,39 @@ class GameEngine:
         if self.game_over:
             return
 
-        self.player.vy += self.gravity
+        # Apply gravity capped at terminal velocity
+        self.player.vy = min(self.player.vy + self.gravity, self.terminal_velocity)
         self.player.x = max(0, self.player.x + self.player.vx)
 
-        # NOTE: gravity has no terminal-velocity cap, so vertical speed
-        # keeps growing the longer the player falls. Collision is only
-        # checked against the player's rect *after* it has already
-        # moved for the frame - there's no check for whether the
-        # player's path crossed a platform along the way. After a
-        # long enough fall (e.g. off the elevated middle platform),
-        # a single frame's movement can carry the player from just
-        # above a platform to just below it without the two rects
-        # ever overlapping, so the platform is skipped entirely and
-        # the player falls straight through. See Task 1 in the README.
+        # Track pre-movement vertical position for swept collision detection
+        old_bottom = self.player.y + self.player.height
         self.player.y += self.player.vy
+        new_bottom = self.player.y + self.player.height
         self.player.on_ground = False
-        for platform in self.platforms:
-            if self.player.rect().colliderect(platform.rect()) and self.player.vy >= 0:
-                self.player.y = platform.y - self.player.height
+
+        if self.player.vy >= 0:
+            player_left = self.player.x
+            player_right = self.player.x + self.player.width
+
+            # Find the highest platform crossed or intersected during this step
+            best_platform = None
+            best_landing_y = float("inf")
+
+            for platform in self.platforms:
+                plat_left = platform.x
+                plat_right = platform.x + platform.width
+                plat_top = platform.y
+
+                # Horizontal overlap check
+                if player_right > plat_left and player_left < plat_right:
+                    # Check if the player's bottom swept through or overlapped the platform surface
+                    if old_bottom <= plat_top and new_bottom >= plat_top:
+                        if plat_top < best_landing_y:
+                            best_landing_y = plat_top
+                            best_platform = platform
+
+            if best_platform is not None:
+                self.player.y = best_platform.y - self.player.height
                 self.player.vy = 0
                 self.player.on_ground = True
 
@@ -102,6 +118,5 @@ class GameEngine:
         screen.blit(score_text, (10, 10))
 
         if self.game_over and not getattr(self, "_game_over_logged", False):
-            # NOTE: no proper game-over screen yet - see Task 2 in the README.
             print("Game over! Final score:", self.score)
             self._game_over_logged = True
