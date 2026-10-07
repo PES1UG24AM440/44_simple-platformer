@@ -1,4 +1,5 @@
 import sys
+import numpy as np
 import pygame
 from .player import Player
 from .platform import Platform
@@ -19,10 +20,41 @@ DIFFICULTIES = {
     "Hard": {"gravity": 0.80, "jump_strength": -11.0, "terminal_velocity": 16.0},
 }
 
+def generate_sound(wave_type="sine", freq_start=440, freq_end=440, duration=0.15, sample_rate=44100):
+    """Synthesizes a programmatic sound effect and returns a pygame.mixer.Sound."""
+    total_samples = int(sample_rate * duration)
+    t = np.linspace(0, duration, total_samples, endpoint=False)
+
+    # Frequency sweep over duration
+    frequencies = np.linspace(freq_start, freq_end, total_samples)
+    phase = 2 * np.pi * np.cumsum(frequencies) / sample_rate
+
+    if wave_type == "square":
+        waveform = np.sign(np.sin(phase))
+    else:
+        waveform = np.sin(phase)
+
+    # Exponential decay envelope to prevent popping/clicking
+    envelope = np.exp(-3.0 * t / duration)
+    audio = (waveform * envelope * 0.4 * 32767).astype(np.int16)
+
+    # Convert to stereo array (samples, 2)
+    stereo_audio = np.column_stack((audio, audio))
+    return pygame.sndarray.make_sound(stereo_audio)
+
 class GameEngine:
     def __init__(self, width, height):
         self.width = width
         self.height = height
+
+        # Ensure mixer is initialized
+        if not pygame.mixer.get_init():
+            pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
+
+        # Procedurally generated audio cues
+        self.jump_sound = generate_sound(wave_type="square", freq_start=300, freq_end=600, duration=0.12)
+        self.goal_sound = generate_sound(wave_type="sine", freq_start=523.25, freq_end=1046.50, duration=0.35)
+        self.death_sound = generate_sound(wave_type="square", freq_start=240, freq_end=60, duration=0.40)
 
         self.start_x, self.start_y = 40, height - 120
         self.player = Player(self.start_x, self.start_y)[cite: 2]
@@ -78,7 +110,9 @@ class GameEngine:
             return
 
         if event.type == pygame.KEYDOWN and event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
-            self.player.jump()[cite: 2]
+            if self.player.on_ground:[cite: 5]
+                self.jump_sound.play()
+                self.player.jump()[cite: 2]
 
     def handle_input(self):
         if self.game_over:
@@ -130,14 +164,17 @@ class GameEngine:
 
         for hazard in self.hazards:
             if self.player.rect().colliderect(hazard.rect()):[cite: 2]
+                self.death_sound.play()
                 self.game_over = True[cite: 2]
                 return[cite: 2]
 
         if self.player.y > self.height:[cite: 2]
+            self.death_sound.play()
             self.game_over = True[cite: 2]
             return[cite: 2]
 
         if self.player.x >= self.goal_x:[cite: 2]
+            self.goal_sound.play()
             self.score += 1[cite: 2]
             self.player.x, self.player.y = self.start_x, self.start_y[cite: 2]
             self.player.vy = 0[cite: 2]
